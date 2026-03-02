@@ -9,12 +9,68 @@ import type { IndicatorState } from "@/engine/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type ErrorCategory = "network" | "timeout" | "parse" | "upstream" | "unknown";
+
+function categorizeError(message?: string): ErrorCategory {
+  const text = (message ?? "").toLowerCase();
+  if (text.includes("timeout") || text.includes("aborted")) return "timeout";
+  if (
+    text.includes("fetch failed") ||
+    text.includes("econn") ||
+    text.includes("enotfound") ||
+    text.includes("socket")
+  ) {
+    return "network";
+  }
+  if (
+    text.includes("parse") ||
+    text.includes("json") ||
+    text.includes("could not")
+  ) {
+    return "parse";
+  }
+  if (text.includes("returned") || text.includes("status")) return "upstream";
+  return "unknown";
+}
+
+async function fetchWithRetry<T>(
+  fetcher: () => Promise<T>,
+  retries = 1,
+  delayMs = 500
+): Promise<{ data: T; attempts: number }> {
+  let attempts = 0;
+  let lastError: unknown;
+
+  while (attempts <= retries) {
+    try {
+      attempts += 1;
+      const data = await fetcher();
+      return { data, attempts };
+    } catch (err) {
+      lastError = err;
+      if (attempts > retries) break;
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempts));
+    }
+  }
+
+  throw lastError;
+}
+
 export async function GET(request: NextRequest) {
   // -----------------------------------------------------------------------
   // 1. Authenticate — Vercel Cron sends this header automatically;
   //    manual triggers must pass ?secret= or the Authorization header.
   // -----------------------------------------------------------------------
   const cronSecret = process.env.CRON_SECRET;
+  const isProd = process.env.VERCEL_ENV === "production";
+
+  if (isProd && !cronSecret) {
+    return NextResponse.json(
+      { error: "Cron secret is not configured in production" },
+      { status: 500 }
+    );
+  }
+
   if (cronSecret) {
     const authHeader = request.headers.get("authorization");
     const querySecret = request.nextUrl.searchParams.get("secret");
@@ -34,14 +90,58 @@ export async function GET(request: NextRequest) {
     // ---------------------------------------------------------------------
     // 2. Fetch all data sources in parallel
     // ---------------------------------------------------------------------
-    const [fredResults, microserviceResults] = await Promise.all([
-      fetchAllFred(),
-      fetchAllMicroservices(),
+    const fredStart = Date.now();
+    const microStart = Date.now();
+
+    const [fredFetch, microFetch] = await Promise.all([
+      fetchWithRetry(() => fetchAllFred()),
+      fetchWithRetry(() => fetchAllMicroservices()),
     ]);
+
+    const fredDurationMs = Date.now() - fredStart;
+    const microDurationMs = Date.now() - microStart;
+
+    const fredResults = fredFetch.data;
+    const microserviceResults = microFetch.data;
 
     // Merge: FRED (8 indicators) + microservices (JP, IN, GT)
     // CF remains unavailable until its microservice is built
     const allResults = mergeFetchResults(fredResults, microserviceResults);
+
+    const allEntries = Object.entries(allResults);
+    const errorEntries = allEntries.filter(([, result]) => result.status === "error");
+
+    const sourceTelemetry = {
+      fred: {
+        duration_ms: fredDurationMs,
+        attempts: fredFetch.attempts,
+        ok: Object.values(fredResults).filter((result) => result.status === "ok").length,
+        error: Object.values(fredResults).filter((result) => result.status === "error").length,
+      },
+      microservices: {
+        duration_ms: microDurationMs,
+        attempts: microFetch.attempts,
+        ok: Object.values(microserviceResults).filter((result) => result.status === "ok")
+          .length,
+        error: Object.values(microserviceResults).filter(
+          (result) => result.status === "error"
+        ).length,
+      },
+      errors_by_category: errorEntries.reduce<Record<ErrorCategory, number>>(
+        (acc, [, result]) => {
+          const category = categorizeError(result.error);
+          acc[category] += 1;
+          return acc;
+        },
+        {
+          network: 0,
+          timeout: 0,
+          parse: 0,
+          upstream: 0,
+          unknown: 0,
+        }
+      ),
+    };
 
     // ---------------------------------------------------------------------
     // 3. Get previous indicators from Supabase for fallback
@@ -53,7 +153,6 @@ export async function GET(request: NextRequest) {
     // Convert previous Supabase rows into IndicatorState[] for normalize
     let previousIndicators: IndicatorState[] | null = null;
     if (prevRows && prevRows.length > 0) {
-      // We need the indicator definitions to reconstruct IndicatorState
       const { INDICATORS } = await import("@/engine/indicators");
       const defMap = new Map(INDICATORS.map((d) => [d.id, d]));
 
@@ -67,7 +166,12 @@ export async function GET(request: NextRequest) {
           activation: row.activation ?? 0,
           sparkData: (row.sparkline as number[]) ?? [],
           trend: (row.trend ?? "stable") as "improving" | "stable" | "worsening",
-          status: row.status === "live" ? "live" : row.status === "cached" ? "cached" : "unavailable",
+          status:
+            row.status === "live"
+              ? "live"
+              : row.status === "cached"
+                ? "cached"
+                : "unavailable",
           lastFetched: row.last_updated ?? undefined,
         });
       }
@@ -85,7 +189,6 @@ export async function GET(request: NextRequest) {
     const score = calcDoomScoreDynamic(indicators);
     const level = getAlertLevel(score);
 
-    // Top drivers: indicators with highest weighted contribution, excluding unavailable
     const topDrivers = indicators
       .filter((ind) => ind.status !== "unavailable" && ind.activation > 0.1)
       .sort((a, b) => b.activation * b.weight - a.activation * a.weight)
@@ -101,7 +204,6 @@ export async function GET(request: NextRequest) {
     // ---------------------------------------------------------------------
     const timestamp = new Date().toISOString();
 
-    // 6a. UPSERT each indicator into indicators
     const indicatorRows = indicators.map((ind) => ({
       id: ind.id,
       value: ind.value,
@@ -120,7 +222,6 @@ export async function GET(request: NextRequest) {
       throw new Error(`Supabase indicators upsert failed: ${indicatorError.message}`);
     }
 
-    // 6b. UPSERT today's score into score_history
     const { error: historyError } = await supabaseAdmin
       .from("score_history")
       .upsert(
@@ -139,7 +240,6 @@ export async function GET(request: NextRequest) {
       throw new Error(`Supabase score_history upsert failed: ${historyError.message}`);
     }
 
-    // 6c. Build indicator results log and INSERT cron log
     const indicatorResults: Record<string, string> = {};
     for (const ind of indicators) {
       const result = allResults[ind.id];
@@ -162,23 +262,18 @@ export async function GET(request: NextRequest) {
         duration_ms: duration,
         score,
         active_count: activeCount,
-        indicator_statuses: indicatorResults,
+        indicator_statuses: {
+          ...indicatorResults,
+          _telemetry: sourceTelemetry,
+        },
       });
 
     if (cronLogError) {
-      // Non-fatal: log failure shouldn't break the cron
       console.error("Cron log insert failed:", cronLogError.message);
     }
 
-    // ---------------------------------------------------------------------
-    // 7. Return summary response
-    // ---------------------------------------------------------------------
-    const okCount = Object.values(allResults).filter(
-      (r) => r.status === "ok"
-    ).length;
-    const errorCount = Object.values(allResults).filter(
-      (r) => r.status === "error"
-    ).length;
+    const okCount = allEntries.filter(([, result]) => result.status === "ok").length;
+    const errorCount = errorEntries.length;
 
     return NextResponse.json({
       success: true,
@@ -189,12 +284,12 @@ export async function GET(request: NextRequest) {
         failed: errorCount,
         unavailable: indicators.filter((i) => i.status === "unavailable").length,
       },
+      telemetry: sourceTelemetry,
       topDrivers,
       duration,
       timestamp,
     });
   } catch (err) {
-    // Log the failure to Supabase
     const duration = Date.now() - startTime;
 
     try {
