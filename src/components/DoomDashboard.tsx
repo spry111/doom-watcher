@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { buildIndicators, buildHistory } from "@/data/mock";
 import { calcDoomScore, getAlertLevel, generateSummary } from "@/engine/engine";
+import { SCENARIOS } from "@/engine/scenarios";
 import { colors } from "@/lib/design-tokens";
 import HeroSection from "./HeroSection";
 import QuickStats from "./QuickStats";
@@ -11,6 +12,7 @@ import DriverCards from "./DriverCards";
 import IndicatorList from "./IndicatorList";
 import MethodologyPanel from "./MethodologyPanel";
 import Footer from "./Footer";
+import ExplainabilityPanel from "./ExplainabilityPanel";
 
 export default function DoomDashboard() {
   const [scenarioIndex, setScenarioIndex] = useState(1);
@@ -33,6 +35,13 @@ export default function DoomDashboard() {
     () => generateSummary(indicators, score),
     [indicators, score]
   );
+  const previousScenarioIndex = scenarioIndex === 0 ? 0 : scenarioIndex - 1;
+  const previousScenarioIndicators = useMemo(
+    () => buildIndicators(previousScenarioIndex),
+    [previousScenarioIndex]
+  );
+  const previousScenarioLabel =
+    SCENARIOS[previousScenarioIndex]?.label ?? SCENARIOS[0].label;
 
   // D key shortcut to cycle scenarios
   useEffect(() => {
@@ -130,6 +139,11 @@ export default function DoomDashboard() {
         <QuickStats indicators={indicators} history={history} />
         <HistoryChart history={history} level={level} />
         <DriverCards indicators={indicators} />
+        <ExplainabilityPanel
+          indicators={indicators}
+          previousScenarioIndicators={previousScenarioIndicators}
+          previousScenarioLabel={previousScenarioLabel}
+        />
         <IndicatorList
           indicators={indicators}
           expandedId={expandedIndicatorId}
