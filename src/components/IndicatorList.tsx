@@ -4,14 +4,12 @@ import IndicatorRow from "./IndicatorRow";
 
 interface IndicatorListProps {
   indicators: IndicatorState[];
-  expandedId: string | null;
-  onToggle: (id: string) => void;
+  onOpenDetail: (id: string) => void;
 }
 
 export default function IndicatorList({
   indicators,
-  expandedId,
-  onToggle,
+  onOpenDetail,
 }: IndicatorListProps) {
   const sorted = [...indicators].sort(
     (a, b) => b.activation * b.weight - a.activation * a.weight
@@ -51,9 +49,8 @@ export default function IndicatorList({
           >
             <IndicatorRow
               indicator={ind}
-              isExpanded={expandedId === ind.id}
               isLast={idx === sorted.length - 1}
-              onToggle={() => onToggle(ind.id)}
+              onOpenDetail={() => onOpenDetail(ind.id)}
             />
           </div>
         ))}

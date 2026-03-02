@@ -1,6 +1,10 @@
 import { colors } from "@/lib/design-tokens";
 
-export default function Footer() {
+interface FooterProps {
+  meta?: { live: number; total: number } | null;
+}
+
+export default function Footer({ meta }: FooterProps) {
   return (
     <footer
       className="text-center"
@@ -9,6 +13,17 @@ export default function Footer() {
         borderTop: `1px solid ${colors.border}`,
       }}
     >
+      {meta && (
+        <p
+          style={{
+            fontSize: 11,
+            color: colors.textFaint,
+            marginBottom: 12,
+          }}
+        >
+          {meta.live} of {meta.total} indicators live
+        </p>
+      )}
       <p
         style={{
           fontSize: 12,

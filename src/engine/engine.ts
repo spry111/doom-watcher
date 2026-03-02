@@ -18,6 +18,17 @@ export function calcDoomScore(indicators: IndicatorState[]): number {
   return clamp(Math.round((weightedSum / TOTAL_WEIGHT) * 100), 0, 100);
 }
 
+export function calcDoomScoreDynamic(indicators: IndicatorState[]): number {
+  const available = indicators.filter((ind) => ind.status !== "unavailable");
+  if (available.length === 0) return 0;
+  const weightedSum = available.reduce(
+    (sum, ind) => sum + ind.activation * ind.weight,
+    0
+  );
+  const totalWeight = available.reduce((sum, ind) => sum + ind.weight, 0);
+  return clamp(Math.round((weightedSum / totalWeight) * 100), 0, 100);
+}
+
 export function getAlertLevel(score: number): AlertLevel {
   return (
     alertLevels.find((l) => score >= l.min && score <= l.max) ?? alertLevels[0]

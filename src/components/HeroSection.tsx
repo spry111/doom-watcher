@@ -1,6 +1,5 @@
-import type { AlertLevel } from "@/engine/types";
-import { SCENARIOS } from "@/engine/scenarios";
-import { colors } from "@/lib/design-tokens";
+import type { AlertLevel, DataMode } from "@/engine/types";
+import { colors, alertColors } from "@/lib/design-tokens";
 
 const RING_SIZE = 180;
 const RING_RADIUS = 82;
@@ -10,23 +9,47 @@ interface HeroSectionProps {
   score: number;
   level: AlertLevel;
   summary: string;
-  scenarioIndex: number;
-  onScenarioChange: (index: number) => void;
+  dataMode: DataMode;
+  onDataModeChange: (mode: DataMode) => void;
+  lastUpdated: string | null;
+  hasLiveData: boolean;
+  scoreDelta: number | null;
+}
+
+const DEMO_TABS: { mode: DataMode; label: string }[] = [
+  { mode: "demo-calm", label: "Calm" },
+  { mode: "demo-caution", label: "Caution" },
+  { mode: "demo-danger", label: "Danger" },
+  { mode: "demo-crisis", label: "Crisis" },
+];
+
+function formatLastUpdated(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export default function HeroSection({
   score,
   level,
   summary,
-  scenarioIndex,
-  onScenarioChange,
+  dataMode,
+  onDataModeChange,
+  lastUpdated,
+  hasLiveData,
+  scoreDelta,
 }: HeroSectionProps) {
   const arcLength = (score / 100) * RING_CIRCUMFERENCE;
   const shouldPulse = score >= 55;
+  const isCurrent = dataMode === "current";
 
   return (
     <section className="flex flex-col items-center" style={{ padding: "32px 0 36px" }}>
-      {/* padding reduced from 48px for mobile; hero stays above fold */}
       {/* Score Ring */}
       <div
         className={shouldPulse ? "animate-subtlePulse" : ""}
@@ -124,11 +147,49 @@ export default function HeroSection({
         </span>
       </div>
 
+      {/* Score delta badge */}
+      {isCurrent && (
+        <div
+          style={{
+            marginTop: 8,
+            fontSize: 12,
+            color: colors.textMuted,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          {scoreDelta !== null ? (
+            scoreDelta === 0 ? (
+              <span>No change since yesterday</span>
+            ) : (
+              <>
+                <span
+                  style={{
+                    color:
+                      scoreDelta > 0
+                        ? alertColors.red.primary
+                        : alertColors.green.primary,
+                    fontWeight: 500,
+                  }}
+                >
+                  {scoreDelta > 0 ? "\u2191" : "\u2193"}
+                  {Math.abs(scoreDelta)}
+                </span>
+                <span>since yesterday</span>
+              </>
+            )
+          ) : hasLiveData ? (
+            <span>New \u2014 history will build daily</span>
+          ) : null}
+        </div>
+      )}
+
       {/* Summary */}
       <p
         className="text-center"
         style={{
-          marginTop: 16,
+          marginTop: 12,
           maxWidth: 480,
           fontSize: 15,
           lineHeight: 1.65,
@@ -138,53 +199,108 @@ export default function HeroSection({
         {summary}
       </p>
 
-      {/* Scenario Switcher */}
+      {/* Last updated timestamp (current mode with live data) */}
+      {isCurrent && lastUpdated && (
+        <p
+          style={{
+            fontSize: 11,
+            color: colors.textFaint,
+            marginTop: 16,
+          }}
+        >
+          Last updated {formatLastUpdated(lastUpdated)}
+        </p>
+      )}
+
+      {/* Data Mode Tabs */}
       <div
-        className="flex flex-wrap justify-center gap-1.5"
         style={{
           marginTop: 24,
-          padding: 4,
-          background: colors.surfaceAlt,
-          borderRadius: 12,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 10,
         }}
       >
-        {SCENARIOS.map((sc, i) => {
-          const isActive = i === scenarioIndex;
-          return (
-            <button
-              key={sc.key}
-              onClick={() => onScenarioChange(i)}
+        {/* Primary: Current tab */}
+        <button
+          onClick={() => onDataModeChange("current")}
+          style={{
+            padding: "8px 22px",
+            borderRadius: 10,
+            border: isCurrent
+              ? `1.5px solid ${alertColors.green.border}`
+              : `1px solid ${colors.border}`,
+            background: isCurrent ? alertColors.green.bg : colors.surface,
+            fontSize: 14,
+            fontWeight: 600,
+            color: isCurrent
+              ? alertColors.green.primary
+              : colors.textSecondary,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            transition: "all 0.2s",
+          }}
+        >
+          {hasLiveData && (
+            <span
               style={{
-                padding: "7px 16px",
-                borderRadius: 9,
-                border: "none",
-                background: isActive ? colors.surface : "transparent",
-                boxShadow: isActive
-                  ? "0 1px 3px rgba(0,0,0,0.08)"
-                  : "none",
-                fontSize: 13,
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? level.color : colors.textMuted,
-                cursor: "pointer",
-                transition: "all 0.2s",
+                display: "inline-block",
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: alertColors.green.primary,
+                flexShrink: 0,
               }}
-            >
-              {sc.label}
-            </button>
-          );
-        })}
-      </div>
+            />
+          )}
+          Current
+        </button>
 
-      {/* Helper text */}
-      <p
-        style={{
-          fontSize: 11,
-          color: colors.textFaint,
-          marginTop: 8,
-        }}
-      >
-        Demo scenarios — switch to see different conditions
-      </p>
+        {/* Divider label */}
+        <span style={{ fontSize: 11, color: colors.textFaint, letterSpacing: "0.03em" }}>
+          Demo scenarios
+        </span>
+
+        {/* Secondary: Demo tabs row */}
+        <div
+          style={{
+            display: "flex",
+            gap: 2,
+            padding: 3,
+            background: colors.surfaceAlt,
+            borderRadius: 9,
+          }}
+        >
+          {DEMO_TABS.map(({ mode, label }) => {
+            const isActive = dataMode === mode;
+            return (
+              <button
+                key={mode}
+                onClick={() => onDataModeChange(mode)}
+                style={{
+                  padding: "5px 13px",
+                  borderRadius: 7,
+                  border: "none",
+                  background: isActive ? colors.surface : "transparent",
+                  boxShadow: isActive
+                    ? "0 1px 3px rgba(0,0,0,0.08)"
+                    : "none",
+                  fontSize: 12,
+                  fontWeight: isActive ? 500 : 400,
+                  color: isActive ? colors.textSecondary : colors.textMuted,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </section>
   );
 }

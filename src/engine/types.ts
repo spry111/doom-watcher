@@ -16,6 +16,8 @@ export interface IndicatorState extends IndicatorDef {
   activation: number;
   sparkData: number[];
   trend: "improving" | "stable" | "worsening";
+  status?: "live" | "cached" | "unavailable";
+  lastFetched?: string;
 }
 
 export interface AlertLevel {
@@ -38,3 +40,27 @@ export interface HistoryPoint {
   score: number;
   date: string;
 }
+
+export interface HistoryEntry {
+  score: number;
+  level: string;
+  date: string;
+  topDrivers: string[];
+}
+
+export interface CronLog {
+  success: boolean;
+  duration: number;
+  indicators: Record<
+    string,
+    { status: "ok" | "error" | "unavailable"; value?: number; error?: string }
+  >;
+}
+
+export type DataMode =
+  | "loading"
+  | "current"
+  | "demo-calm"
+  | "demo-caution"
+  | "demo-danger"
+  | "demo-crisis";

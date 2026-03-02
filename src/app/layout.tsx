@@ -10,8 +10,22 @@ const instrumentSans = Instrument_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Doom Watcher",
-  description: "Recession early warning dashboard",
+  title: "Doom Watcher — Recession Early Warning Dashboard",
+  description:
+    "12 economic indicators synthesized into one score. Is a recession coming?",
+  openGraph: {
+    title: "Doom Watcher — Recession Early Warning Dashboard",
+    description:
+      "12 economic indicators synthesized into one score. Is a recession coming?",
+    type: "website",
+    siteName: "Doom Watcher",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Doom Watcher — Recession Early Warning Dashboard",
+    description:
+      "12 economic indicators synthesized into one score. Is a recession coming?",
+  },
 };
 
 export default function RootLayout({

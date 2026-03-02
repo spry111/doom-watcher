@@ -19,6 +19,27 @@ body {
   }
 }
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @keyframes subtlePulse {
   0%,
   100% {
@@ -29,10 +50,70 @@ body {
   }
 }
 
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Detail modal */
+.detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: fadeIn 0.2s ease;
+}
+
+.detail-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: modalUp 0.25s ease;
+  position: relative;
+}
+
+.detail-handle {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .detail-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .detail-modal {
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+    animation: slideUp 0.25s ease;
+  }
+  .detail-handle {
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: #d4d4d4;
+    margin: 10px auto 0;
+  }
+}
+
 /* Indicator row grid — hide sparkline on mobile */
 .indicator-grid {
   display: grid;
-  grid-template-columns: 1fr 70px 28px;
+  grid-template-columns: 1fr 90px 28px;
   gap: 8px;
   align-items: center;
   padding: 14px 18px;
@@ -42,7 +123,7 @@ body {
 
 @media (min-width: 640px) {
   .indicator-grid {
-    grid-template-columns: 1fr 64px 70px 28px;
+    grid-template-columns: 1fr 64px 90px 28px;
   }
 }
 
