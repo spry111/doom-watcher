@@ -64,6 +64,10 @@ interface DoomDashboardProps {
 export default function DoomDashboard({ user, profile }: DoomDashboardProps = {}) {
   const [dataMode, setDataMode] = useState<DataMode>("loading");
   const [liveData, setLiveData] = useState<LiveData | null>(null);
+  const [fetchState, setFetchState] = useState<
+    "loading" | "live" | "fallback-no-data" | "fallback-error"
+  >("loading");
+  const [fallbackReason, setFallbackReason] = useState<string | null>(null);
   const [detailIndicatorId, setDetailIndicatorId] = useState<string | null>(
     null
   );
@@ -104,7 +108,27 @@ export default function DoomDashboard({ user, profile }: DoomDashboardProps = {}
   const fetchLiveData = useCallback(async () => {
     try {
       const res = await fetch("/api/indicators");
-      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      if (!res.ok) {
+        let message = `API returned ${res.status}`;
+        try {
+          const errorPayload = await res.json();
+          if (typeof errorPayload?.message === "string") {
+            message = errorPayload.message;
+          }
+        } catch {
+          // Ignore parse failures and use status-based fallback message.
+        }
+
+        if (res.status === 404) {
+          setFetchState("fallback-no-data");
+          setFallbackReason(message);
+        } else {
+          setFetchState("fallback-error");
+          setFallbackReason(message);
+        }
+        setDataMode("current");
+        return;
+      }
 
       const data = await res.json();
 
@@ -122,9 +146,13 @@ export default function DoomDashboard({ user, profile }: DoomDashboardProps = {}
         previousScore: data.previousScore ?? null,
         previousIndicators: data.previousIndicators ?? null,
       });
+      setFetchState("live");
+      setFallbackReason(null);
       setDataMode("current");
     } catch {
       // API unavailable — show current mode (will use caution demo as fallback)
+      setFetchState("fallback-error");
+      setFallbackReason("Could not reach the live data API.");
       setDataMode("current");
     }
   }, []);
@@ -291,7 +319,33 @@ export default function DoomDashboard({ user, profile }: DoomDashboardProps = {}
   // Render
   // ---------------------------------------------------------------------------
   const isDemo = dataMode.startsWith("demo-");
-  const showFallbackBanner = dataMode === "current" && !liveData;
+  const statusTone =
+    fetchState === "live"
+      ? {
+          background: alertColors.green.bg,
+          border: alertColors.green.border,
+          text: alertColors.green.primary,
+        }
+      : fetchState === "fallback-no-data"
+        ? {
+            background: alertColors.amber.bg,
+            border: alertColors.amber.border,
+            text: alertColors.amber.primary,
+          }
+        : {
+            background: colors.surfaceAlt,
+            border: colors.border,
+            text: colors.textSecondary,
+          };
+
+  const liveTimestamp = liveData?.lastUpdated
+    ? new Date(liveData.lastUpdated).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null;
 
   return (
     <div className="min-h-screen bg-bg">
@@ -424,6 +478,33 @@ export default function DoomDashboard({ user, profile }: DoomDashboardProps = {}
           scoreDelta={scoreDelta}
         />
 
+        {dataMode === "current" && fetchState !== "loading" && (
+          <div
+            style={{
+              background: statusTone.background,
+              border: `1px solid ${statusTone.border}`,
+              borderRadius: 10,
+              padding: "10px 14px",
+              marginBottom: 8,
+            }}
+          >
+            <div style={{ fontSize: 13, color: statusTone.text, fontWeight: 600 }}>
+              {fetchState === "live"
+                ? "Live data connected"
+                : fetchState === "fallback-no-data"
+                  ? "Fallback mode: waiting for first live update"
+                  : "Fallback mode: live feed unavailable"}
+            </div>
+            <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+              {fetchState === "live"
+                ? liveTimestamp
+                  ? `Last successful live update: ${liveTimestamp}`
+                  : "Live data is available, but update time is missing."
+                : fallbackReason ?? "Using demo baseline data until live updates return."}
+            </div>
+          </div>
+        )}
+
         {/* Demo mode banner */}
         {isDemo && (
           <div
@@ -455,24 +536,6 @@ export default function DoomDashboard({ user, profile }: DoomDashboardProps = {}
             >
               Return to Current
             </button>
-          </div>
-        )}
-
-        {/* Fallback banner when current mode but no live data */}
-        {showFallbackBanner && (
-          <div
-            style={{
-              background: colors.surfaceAlt,
-              border: `1px solid ${colors.border}`,
-              borderRadius: 10,
-              padding: "10px 16px",
-              textAlign: "center",
-              marginBottom: 8,
-            }}
-          >
-            <span style={{ fontSize: 13, color: colors.textSecondary }}>
-              Live data will appear after the first daily update
-            </span>
           </div>
         )}
 
