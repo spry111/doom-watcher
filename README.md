@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Doom Watcher
 
-## Getting Started
+Doom Watcher is a small Next.js dashboard that simulates a macro risk monitor. It blends several synthetic indicators into a single **Doom Score** and presents trend context, top drivers, and scenario toggles.
 
-First, run the development server:
+## What the app currently does
+
+- Calculates a weighted aggregate score from mock indicators.
+- Maps the score to an alert level with color semantics.
+- Shows history, quick stats, and indicator-level trend details.
+- Supports scenario switching to compare different market/risk regimes.
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `npm run dev` – start local development server.
+- `npm run build` – production build.
+- `npm run start` – run production server.
+- `npm run lint` – ESLint checks.
+- `npm run type-check` – TypeScript validation.
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+- `src/app` – Next.js App Router entrypoints and global CSS.
+- `src/components` – dashboard UI sections and reusable visual primitives.
+- `src/engine` – scoring logic, scenario definitions, and alert-level rules.
+- `src/data` – mock data builders used by the UI.
+- `src/lib` – design tokens and utilities.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Improvement roadmap
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+A prioritized analysis and brainstormed improvement plan is available at:
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [`docs/improvement-roadmap.md`](docs/improvement-roadmap.md)
